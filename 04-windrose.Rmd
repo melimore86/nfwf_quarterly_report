@@ -1,0 +1,221 @@
+# Windrose Quarterly Figures
+  
+A wind rose visualizes the frequency of winds blowing from a specific direction of a desired Date Range. The data used for this figure were collected via the `rnoaa` R Package at station CDRF1 (Cedar Key, Florida). The legend represents the wind speed ranging from low (2-4 m/s) to high (18-20 m/s) wind speeds. The cardinal directions on the outer part of the wind rose indicate the direction of the wind. The Frequency is displayed as the lowest to highest percentage frequency of a wind speed occuring in a given direction, by the size of the wind magnitude polygon. Wind data are updated periodically through USGS (monthly basis).   
+  
+  
+```{r windrose_options, setup, include=FALSE, warning=FALSE, message=FALSE, comment=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library("tidyverse")
+options(dplyr.summarise.inform = FALSE)
+library("lubridate")
+library("ncdf4")
+library("rnoaa")
+library("RColorBrewer")
+library("scales")
+```
+
+
+```{r, include= FALSE}
+#wind17 <- buoy(dataset='cwind',buoyid='CDRF1', datatype='c', year=2017)
+#wind18 <- buoy(dataset='cwind',buoyid='CDRF1', datatype='c', year=2018)
+#wind19 <- buoy(dataset='cwind',buoyid='CDRF1', datatype='c', year=2019)
+wind20 <- buoy(dataset='cwind',buoyid='CDRF1', datatype='c', year=2020)
+wind21 <- buoy(dataset='cwind',buoyid='CDRF1', datatype='c', year=2021)
+wind <- rbind(wind20$data, wind21$data) %>% dplyr::distinct()
+
+# Shrink the wind table, and convert the format of time
+wind$time <- ymd_hms(wind$time)
+    
+plot.windrose <- function(data,
+                              spd,
+                              dir,
+                              spdres = 2,
+                              dirres = 22.5,
+                              spdmin = 2,
+                              spdmax = 20,
+                              spdseq = NULL,
+                              palette = "YlGnBu",
+                              countmax = NA,
+                              debug = 0){
+      
+      
+      # Look to see what data was passed in to the function
+      if (is.numeric(spd) & is.numeric(dir)){
+        # assume that we've been given vectors of the speed and direction vectors
+        data <- data.frame(spd = spd,
+                           dir = dir)
+        spd = "spd"
+        dir = "dir"
+      } else if (exists("data")){
+        # Assume that we've been given a data frame, and the name of the speed 
+        # and direction columns. This is the format we want for later use.    
+      }  
+      
+      # Tidy up input data ----
+      n.in <- NROW(data)
+      dnu <- (is.na(data[[spd]]) | is.na(data[[dir]]))
+      data[[spd]][dnu] <- NA
+      data[[dir]][dnu] <- NA
+      
+      # figure out the wind speed bins ----
+      if (missing(spdseq)){
+        spdseq <- seq(spdmin,spdmax,spdres)
+      } else {
+        if (debug >0){
+          cat("Using custom speed bins \n")
+        }
+      }
+      # get some information about the number of bins, etc.
+      n.spd.seq <- length(spdseq)
+      n.colors.in.range <- n.spd.seq - 1
+      
+      # create the color map
+      spd.colors <- colorRampPalette(brewer.pal(min(max(3,
+                                                        n.colors.in.range),
+                                                    min(9,
+                                                        n.colors.in.range)),                                               
+                                                palette))(n.colors.in.range)
+      
+      if (max(data[[spd]],na.rm = TRUE) > spdmax){    
+        spd.breaks <- c(spdseq,
+                        max(data[[spd]],na.rm = TRUE))
+        spd.labels <- c(paste(c(spdseq[1:n.spd.seq-1]),
+                              '-',
+                              c(spdseq[2:n.spd.seq])),
+                        paste(spdmax,
+                              "-",
+                              max(data[[spd]],na.rm = TRUE)))
+        spd.colors <- c(spd.colors, "grey50")
+      } else{
+        spd.breaks <- spdseq
+        spd.labels <- paste(c(spdseq[1:n.spd.seq-1]),
+                            '-',
+                            c(spdseq[2:n.spd.seq]))    
+      }
+      data$spd.binned <- cut(x = data[[spd]],
+                             breaks = spd.breaks,
+                             labels = spd.labels,
+                             ordered_result = TRUE)
+      
+      # figure out the wind direction bins
+      dir.breaks <- c(-dirres/2,
+                      seq(dirres/2, 360-dirres/2, by = dirres),
+                      360+dirres/2)  
+      dir.labels <- c(paste(360-dirres/2,"-",dirres/2),
+                      paste(seq(dirres/2, 360-3*dirres/2, by = dirres),
+                            "-",
+                            seq(3*dirres/2, 360-dirres/2, by = dirres)),
+                      paste(360-dirres/2,"-",dirres/2))
+      # assign each wind direction to a bin
+      dir.binned <- cut(data[[dir]],
+                        breaks = dir.breaks,
+                        ordered_result = TRUE)
+      levels(dir.binned) <- dir.labels
+      data$dir.binned <- dir.binned
+      
+      # Run debug if required ----
+      if (debug>0){    
+        cat(dir.breaks,"\n")
+        cat(dir.labels,"\n")
+        cat(levels(dir.binned),"\n")
+        
+      }  
+      
+      
+      # Create the labels:
+      x_location <- pi # x location of the labels
+      
+      # Get the percentage
+      T_data <- data %>%
+        dplyr::group_by(dir.binned) %>%
+        dplyr::summarise(count= n()) %>%
+        dplyr::mutate(y = count/sum(count))
+      
+      labels <- data.frame(x = x_location,
+                           y = scales::extended_breaks()(range(T_data$y)))
+      
+      
+      # create the plot ---
+      
+      p.windrose <- ggplot() +
+        geom_bar(data = data,
+                 aes(x = dir.binned, y = (..count..)/sum(..count..),
+                     fill = spd.binned))+
+        geom_text(data = labels,
+                  aes(x=x, y=y, label = scales::percent(y, 1))) +
+        scale_y_continuous(breaks = waiver(),labels=NULL)+
+        scale_x_discrete(drop = FALSE,
+                         labels = c("N","NNE","NE","ENE", "E", 
+                                    "ESE", "SE","SSE", 
+                                    "S","SSW", "SW","WSW", "W", 
+                                    "WNW","NW","NNW")) +
+        ylab("")+xlab("")+
+        coord_polar(start = -((dirres/2)/360) * 2*pi) +
+        scale_fill_manual(name = "Wind Speed (m/s)", 
+                          values = spd.colors,
+                          drop = FALSE) +
+        theme(axis.title.x = element_blank(),
+              axis.text = element_text(size=13, face= "bold"), 
+              axis.title = element_text(size=13, face= "bold"),
+              legend.text = element_text(size = 12),
+              axis.text.y=element_blank(),
+              axis.ticks.y=element_blank())
+      
+      
+      # adjust axes if required
+      if (!is.na(countmax)){
+        p.windrose <- p.windrose +
+          ylim(c(0,countmax))
+      }
+      
+      # print the plot
+      print(p.windrose)  
+      
+      # return the handle to the wind rose
+      return(p.windrose)
+    }
+```
+
+
+```{r, include= FALSE}
+wind0 <- wind %>%
+  filter(time >= "2020-12-01 00:00:00" & time <= "2020-12-31 00:00:00") %>%
+  select(time, wind_spd, wind_dir)
+
+wind1 <- wind %>%
+  filter(time >= "2021-01-01 00:00:00" & time <= "2021-01-31 00:00:00") %>%
+  select(time, wind_spd, wind_dir)
+
+
+wind2 <- wind %>%
+  filter(time >= "2021-02-01 00:00:00" & time <= "2021-02-28 00:00:00") %>%
+  select(time, wind_spd, wind_dir)
+```
+
+Windrose from December 1, 2020 to December 31, 2020
+```{r, echo= FALSE}
+dec_plot<-plot.windrose(spd = wind0$wind_spd,
+                         dir = wind0$wind_dir)
+
+```
+
+
+Windrose from Janauary 1, 2021 to January 31, 2021
+```{r, echo= FALSE}
+
+
+jan_plot<-plot.windrose(spd = wind1$wind_spd,
+                    dir = wind1$wind_dir)
+
+```
+
+Windrose from February 1, 2021 to February 28, 2021
+```{r, echo= FALSE}
+
+
+feb_plot<-plot.windrose(spd = wind2$wind_spd,
+                          dir = wind2$wind_dir)
+
+```
+
+

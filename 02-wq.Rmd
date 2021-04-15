@@ -1,0 +1,731 @@
+# Water Quality Quarterly Figures  
+```{r salinity_data_processing, include=FALSE, warning=FALSE, message= FALSE}
+
+# Sensor water quality carpentry
+wq <- read.csv("data/wq/wq.csv", header= T) %>%
+  filter(Site != 0) 
+
+wq<-wq %>% 
+  filter(Obs_Date > "2021-01-01 00:00:00" & Obs_Date < "2021-03-31 23:00:00")
+
+wq$year <- strftime(wq$Obs_Date, format = "%Y")
+
+#Remove 2017
+wq <- wq %>%
+  subset(year %in% c('2018','2019','2020', '2021')) %>%
+  subset(Site %in% c(1:9))
+
+#Calculate mean salinity by date and site
+wq2 <- aggregate(Salinity ~ Obs_Date + Site, FUN = mean, data = wq) 
+
+#Calculate the standard deviations for salinity by date and site
+wq3 <- aggregate(Salinity ~ Obs_Date + Site, FUN = sd, data = wq)  
+
+#Rename salinity sd to prevent redundant names
+colnames(wq3)[colnames(wq3)=="Salinity"] <- "sal.sd"
+
+#Add salinity sd vector to df with salinity mean values
+wq2$sal.sd <- wq3$sal.sd
+
+#Change the name of the mean salinity column
+colnames(wq2)[colnames(wq2)=="Salinity"] <- "sal.mean"
+
+
+wqs1<-wq2 %>%
+  filter(Site == 1) %>% 
+  mutate(Obs_Date = as.Date(Obs_Date)) %>%
+  complete(Obs_Date = seq.Date(min(Obs_Date), max(Obs_Date), by="day"))
+
+wqs1['Site'] = as.numeric(1)
+
+wqs2<-wq2 %>%
+  filter(Site == 2) %>% 
+  mutate(Obs_Date = as.Date(Obs_Date)) %>%
+  complete(Obs_Date = seq.Date(min(Obs_Date), max(Obs_Date), by="day"))
+
+wqs2['Site'] = as.numeric(2)
+
+wqs3<-wq2 %>%
+  filter(Site == 3) %>% 
+  mutate(Obs_Date = as.Date(Obs_Date)) %>%
+  complete(Obs_Date = seq.Date(min(Obs_Date), max(Obs_Date), by="day"))
+
+wqs3['Site'] = as.numeric(3)
+
+wqs4<-wq2 %>%
+  filter(Site == 4) %>% 
+  mutate(Obs_Date = as.Date(Obs_Date)) %>%
+  complete(Obs_Date = seq.Date(min(Obs_Date), max(Obs_Date), by="day"))
+
+wqs4['Site'] = as.numeric(4)
+
+wqs5<-wq2 %>%
+  filter(Site == 5) %>% 
+  mutate(Obs_Date = as.Date(Obs_Date)) %>%
+  complete(Obs_Date = seq.Date(min(Obs_Date), max(Obs_Date), by="day"))
+
+wqs5['Site'] = as.numeric(5)
+
+wqs6<-wq2 %>%
+  filter(Site == 6) %>% 
+  mutate(Obs_Date = as.Date(Obs_Date)) %>%
+  complete(Obs_Date = seq.Date(min(Obs_Date), max(Obs_Date), by="day"))
+
+wqs6['Site'] = as.numeric(6)
+
+wqs7<-wq2 %>%
+  filter(Site == 7) %>% 
+  mutate(Obs_Date = as.Date(Obs_Date)) %>%
+  complete(Obs_Date = seq.Date(min(Obs_Date), max(Obs_Date), by="day"))
+
+wqs7['Site'] = as.numeric(7)
+
+wqs8<-wq2 %>%
+  filter(Site == 8) %>% 
+  mutate(Obs_Date = as.Date(Obs_Date)) %>%
+  complete(Obs_Date = seq.Date(min(Obs_Date), max(Obs_Date), by="day"))
+
+wqs8['Site'] = as.numeric(8)
+
+wqs9<-wq2 %>%
+  filter(Site == 9) %>% 
+  mutate(Obs_Date = as.Date(Obs_Date)) %>%
+  complete(Obs_Date = seq.Date(min(Obs_Date), max(Obs_Date), by="day"))
+
+wqs9['Site'] = as.numeric(9)
+
+wq2<- rbind(wqs1,wqs2,wqs3,wqs4,wqs5,wqs6,wqs7,wqs8,wqs9)
+
+#Change class? of date and year
+wq2$Obs_Date <- as.POSIXct (wq2$Obs_Date)
+
+#Factoring the site in the order that they are spatially
+wq2$Site <- factor(wq2$Site, levels = c("6", "1", "7", "5", "2", "8","4", "3", "9"))
+
+# Water discharge carpentry (dynamically updating local discharge file)
+station = '02323500' 
+stinfo  = siteInfo(station)
+dis <- read_rds("data/wq/dis.rds")
+if (max(dis$dates) < (Sys.Date() - 5)) {
+  sdate <- max(dis$dates) + 1
+  newdis <- importDVs(staid = station, code = '00060', stat = '00003', 
+                      sdate= as.character(sdate))
+  dis <- bind_rows(dis, newdis) %>%
+    distinct() # In case there's repeated rows due to code failure
+  write_rds(dis, "data/dis.rds")
+}
+
+# Start and end dates for all figures
+startDate <- ymd_hms("2021-01-01 00:00:00")
+endDate <- ymd_hms("2021-03-31 23:00:00")
+
+dis2 <- dis %>%
+  mutate(Datetime = paste(dates, " 12:00:00") %>% ymd_hms()) %>%
+  filter(Datetime >= startDate & Datetime <= endDate)
+
+dis3 <- dis2 %>%
+ expand(Site=unique(wq2$Site), dates) %>%
+  left_join(dis2) %>%
+  mutate(Measure = "Discharge", minVal = -20, maxVal = val/1000-20) %>%
+  select(Site, d2 = dates, Measure, minVal, maxVal)
+
+```
+
+
+```{r salinity_allsites, echo=FALSE, warning=FALSE, message = FALSE, fig.height= 10, fig.width=10}
+
+
+ggplot() +
+
+  geom_ribbon(data= wq2 , aes(x= Obs_Date, ymin = sal.mean - 1.96*sal.sd, ymax = sal.mean + 1.96*sal.sd, group =1), fill = "grey70") +
+  
+  geom_path(data= wq2, aes(x = Obs_Date, y = sal.mean, fill= "Salinity", group =1), na.rm = TRUE) +
+  
+  geom_ribbon(data=dis3, aes(x= as.POSIXct(d2), ymax=maxVal, ymin=minVal, fill=Measure), 
+              alpha=0.4) +
+  
+  xlab("Date") +
+  
+  scale_y_continuous(name = "Salinity(ppt)", 
+                     limits=c(-20,50), 
+                     breaks = c(0, 10, 20, 30, 40),
+                     sec.axis = sec_axis(~(.+20), 
+                                         name = "River Discharge (1,000 cfs)
+                                         ",
+                                         breaks = waiver())) +
+   
+  scale_x_datetime(breaks = seq(as.POSIXct("2021-01-01"),
+                 as.POSIXct("2021-03-31"), "2 weeks"), date_labels = "%b %d %Y",expand = c(0, 0)) +
+
+  
+  scale_fill_manual(values = c("#56B4E9", "#000000")) +
+  
+  theme(legend.position=("top"),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.background = element_rect(fill = NA, colour = NA) ,
+        panel.border = element_rect(color = "black", size = 1, fill = NA, linetype="solid"),
+        axis.text=element_text(size=15),
+        axis.title=element_text(size=17,face="bold"),
+        plot.title =element_text(size=17, face='bold'),
+        axis.text.x = element_text(angle = 65, hjust = 1, vjust = 1, face= "bold"),
+        axis.text.y = element_text(face= "bold"),
+        legend.title=element_blank(),
+        legend.text=element_text(size=12),
+        strip.text = element_text(size = 15),
+        panel.spacing = unit(1, "lines")) +
+  
+ guides(fill = guide_legend(override.aes = list(colour = NULL, linetype = 0))) +
+  
+  facet_wrap(~ Site, ncol=3, labeller = label_both)
+
+
+```
+  
+Figure 1.  Salinity and river discharge data collected from autonomous sensors from the Lone Cabbage Reef restoration site near Suwannee, FL. Each graph represents a sensor location, with top of page as north, and right of page as east. The center column of figures (Sites 1-3) represent the eastern side of the Lone Cabbage Reef restoration site. The left column of figures (Sites 4-6) represent the western side of the Lone Cabbage Reef restoration site. The right column of figures (Sites 7-9) represent sensors closest to shore in an area where salinity may be influenced by restoring Lone Cabbage Reef. The first two columns from the west (Sites 1-6) represent the inshore and offshore sides of the restoration reef. The primary y-axis is Salinity (ppt, parts per thousand), and the secondary y-axis is Suwannee River discharge (CFS, cubic feet per second) measured at USGS Wilcox station 02323500 on the Suwannee River. River discharge is graphed as a daily mean in the light blue filled shape near the bottom of each graph. Daily mean salinity values (black line) are depicted using a 95% confidence interval (grey shaded region). Missing river discharge values are due to corrupt readings or missing equipment.
+
+```{r alltemp_plots_processing, include= FALSE, warning=FALSE}
+
+
+wq_temp <- wq %>%
+  subset(year %in% c('2018','2019', '2020', '2021')) %>%
+  subset(Site %in% c(1:9))
+
+# Sensor water quality carpentry
+#Calculate mean salinity by date and site
+wq_temp2 <- aggregate(Temperature ~ Obs_Date + Site, FUN = mean, data = wq) 
+
+#Calculate the standard deviations for salinity by date and site
+wq_temp3 <- aggregate(Temperature ~ Obs_Date + Site, FUN = sd, data = wq)  
+
+#Rename salinity sd to prevent redundant names
+colnames(wq_temp3)[colnames(wq_temp3)=="Temperature"] <- "temp.sd"
+
+#Add salinity sd vector to df with salinity mean values
+wq_temp2$temp.sd <- wq_temp3$temp.sd
+
+#Change the name of the mean salinity column
+colnames(wq_temp2)[colnames(wq_temp2)=="Temperature"] <- "temp.mean"
+
+wqt1<-wq_temp2 %>%
+  filter(Site == 1) %>% 
+  mutate(Obs_Date = as.Date(Obs_Date)) %>%
+  complete(Obs_Date = seq.Date(min(Obs_Date), max(Obs_Date), by="day"))
+
+wqt1['Site'] = as.numeric(1)
+
+wqt2<-wq_temp2 %>%
+  filter(Site == 2) %>% 
+  mutate(Obs_Date = as.Date(Obs_Date)) %>%
+  complete(Obs_Date = seq.Date(min(Obs_Date), max(Obs_Date), by="day"))
+
+wqt2['Site'] = as.numeric(2)
+
+wqt3<-wq_temp2 %>%
+  filter(Site == 3) %>% 
+  mutate(Obs_Date = as.Date(Obs_Date)) %>%
+  complete(Obs_Date = seq.Date(min(Obs_Date), max(Obs_Date), by="day"))
+
+wqt3['Site'] = as.numeric(3)
+
+wqt4<-wq_temp2 %>%
+  filter(Site == 4) %>% 
+  mutate(Obs_Date = as.Date(Obs_Date)) %>%
+  complete(Obs_Date = seq.Date(min(Obs_Date), max(Obs_Date), by="day"))
+
+wqt4['Site'] = as.numeric(4)
+
+wqt5<-wq_temp2 %>%
+  filter(Site == 5) %>% 
+  mutate(Obs_Date = as.Date(Obs_Date)) %>%
+  complete(Obs_Date = seq.Date(min(Obs_Date), max(Obs_Date), by="day"))
+
+wqt5['Site'] = as.numeric(5)
+
+wqt6<-wq_temp2 %>%
+  filter(Site == 6) %>% 
+  mutate(Obs_Date = as.Date(Obs_Date)) %>%
+  complete(Obs_Date = seq.Date(min(Obs_Date), max(Obs_Date), by="day"))
+
+wqt6['Site'] = as.numeric(6)
+
+wqt7<-wq_temp2 %>%
+  filter(Site == 7) %>% 
+  mutate(Obs_Date = as.Date(Obs_Date)) %>%
+  complete(Obs_Date = seq.Date(min(Obs_Date), max(Obs_Date), by="day"))
+
+wqt7['Site'] = as.numeric(7)
+
+wqt8<-wq_temp2 %>%
+  filter(Site == 8) %>% 
+  mutate(Obs_Date = as.Date(Obs_Date)) %>%
+  complete(Obs_Date = seq.Date(min(Obs_Date), max(Obs_Date), by="day"))
+
+wqt8['Site'] = as.numeric(8)
+
+wqt9<-wq_temp2 %>%
+  filter(Site == 9) %>% 
+  mutate(Obs_Date = as.Date(Obs_Date)) %>%
+  complete(Obs_Date = seq.Date(min(Obs_Date), max(Obs_Date), by="day"))
+
+wqt9['Site'] = as.numeric(9)
+
+wq_temp2<- rbind(wqt1,wqt2,wqt3,wqt4,wqt5,wqt6,wqt7,wqt8,wqt9)
+
+wq_temp2$Site <- factor(wq_temp2$Site, levels = c("6", "1", "7", "5", "2", "8","4", "3", "9"))
+
+
+#Change class? of date and year
+wq_temp2$Obs_Date <- as.POSIXct (wq_temp2$Obs_Date)
+
+```
+
+
+```{r alltemp_sites, echo=FALSE, warning= FALSE, message= FALSE, fig.height= 10, fig.width=10}
+ggplot() +
+
+  geom_ribbon(data= wq_temp2, aes( x= Obs_Date, ymin = temp.mean - 1.96*temp.sd, ymax = temp.mean + 1.96*temp.sd), fill = "#D55E00", alpha= 0.4) +
+  
+  geom_line(data= wq_temp2, aes(x = Obs_Date, y = temp.mean, fill= "Temperature"), color= "#D55E00") +
+  
+  geom_ribbon(data=dis3, aes(x= as.POSIXct(d2), ymax=maxVal, ymin=minVal, fill=Measure), 
+              alpha=0.4) +
+  
+  xlab("Date") +
+  
+  scale_y_continuous(name = "Temperature(C)", 
+                     limits=c(-20,50), 
+                     breaks = c(0, 10,20,30,40),
+                     sec.axis = sec_axis(~(.+20), 
+                                         name = "River Discharge (1,000 cfs)
+                                         ",
+                                         breaks = waiver())) +
+  
+  scale_x_datetime(breaks = seq(as.POSIXct("2021-01-01"),
+                 as.POSIXct("2021-03-31"), "2 weeks"), date_labels = "%b %d %Y",expand = c(0, 0)) +
+
+  
+  scale_fill_manual(values = c("#56B4E9", "#D55E00")) +
+  
+  theme(legend.position=("top"),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.background = element_rect(fill = NA, colour = NA) ,
+        panel.border = element_rect(color = "black", size = 1, fill = NA, linetype="solid"),
+        axis.text=element_text(size=15),
+        axis.title=element_text(size=17,face="bold"),
+        plot.title =element_text(size=17, face='bold'),
+        axis.text.x = element_text(angle = 65, hjust = 1, vjust = 1, face= "bold"),
+        axis.text.y = element_text(face= "bold"),
+        legend.title=element_blank(),
+        legend.text=element_text(size=12),
+        strip.text = element_text(size = 15),
+        panel.spacing = unit(1, "lines")) +
+  
+ guides(fill = guide_legend(override.aes = list(colour = NULL, linetype = 0))) +
+  
+  facet_wrap(~ Site, ncol=3, labeller = label_both)
+
+```
+  
+Figure 2.  Temperature and discharge data collected from autonomous sensors from the Lone Cabbage Reef restoration site near Suwannee, FL. Each graph represents a sensor location, with top of page as north, and right of page as east. The center column of figures (Sites 1-3) represent the eastern side of the Lone Cabbage Reef restoration site. The left column of figures (Sites 4-6) represent the western side of the Lone Cabbage Reef restoration site. The right column of figures (Sites 7-9) represent sensors close to shore in an area where salinity may be influenced by restoring Lone Cabbage Reef. The first two columns from the west (Sites 1-6) represent the inshore and offshore sides of the restoration reef. The primary y-axis is Temperature (C, Celsius), and the secondary y-axis is Suwannee River discharge (CFS, cubic feet per second) measured at USGS Wilcox station 02323500 on the Suwannee River. River discharge is graphed as a daily mean in the light blue filled shape near the bottom of each graph. Daily mean temperature values (orange line) are depicted with a 95% confidence interval (shaded orange region). Missing river discharge values are due to corrupt readings or missing equipment.
+
+
+```{r sal_789, warning= FALSE, message= FALSE, include= FALSE}
+wq_789 <- wq2 %>% 
+  filter( Site == c("7", "8", "9"))
+
+wq_789$Site <- factor(wq_789$Site, levels = c("7", "8","9"))
+
+dis_789 <- dis2 %>%
+ expand(Site=unique(wq_789$Site), dates) %>%
+  left_join(dis2) %>%
+  mutate(Measure = "Discharge", minVal = -20, maxVal = val/1000-20) %>%
+  select(Site, d2 = dates, Measure, minVal, maxVal)
+
+
+```
+
+
+```{r sal_plot789, echo= FALSE, warning= FALSE, message= FALSE, fig.height= 10, fig.width=10}
+ggplot() +
+
+  geom_ribbon(data= wq_789, aes( x= Obs_Date, ymin = sal.mean - 1.96*sal.sd, ymax = sal.mean + 1.96*sal.sd), fill = "grey70") +
+  
+  geom_line(data= wq_789, aes(x = Obs_Date, y = sal.mean, fill= "Salinity")) +
+  
+  geom_ribbon(data=dis_789, aes(x= as.POSIXct(d2), ymax=maxVal, ymin=minVal, fill=Measure), 
+              alpha=0.4) +
+  
+  xlab("Date") +
+  
+  scale_y_continuous(name = "Salinity(ppt)", 
+                     limits=c(-20,50), 
+                     breaks = c(0, 10,20,30,40),
+                     sec.axis = sec_axis(~(.+20), 
+                                         name = "River Discharge (1,000 cfs)
+                                         ",
+                                         breaks = waiver())) +
+  
+  scale_x_datetime(breaks = seq(as.POSIXct("2021-01-01"),
+                 as.POSIXct("2021-03-31"), "2 weeks"), date_labels = "%b %d %Y",expand = c(0, 0)) +
+
+  
+  scale_fill_manual(values = c("#56B4E9", "#000000")) +
+  
+  theme(legend.position=("top"),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.background = element_rect(fill = NA, colour = NA) ,
+        panel.border = element_rect(color = "black", size = 1, fill = NA, linetype="solid"),
+        axis.text=element_text(size=15),
+        axis.title=element_text(size=17,face="bold"),
+        plot.title =element_text(size=17, face='bold'),
+        axis.text.x = element_text(angle = 65, hjust = 1, vjust = 1, face= "bold"),
+        axis.text.y = element_text(face= "bold"),
+        legend.title=element_blank(),
+        legend.text=element_text(size=12),
+        strip.text = element_text(size = 15),
+        panel.spacing = unit(1, "lines")) +
+  
+ guides(fill = guide_legend(override.aes = list(colour = NULL, linetype = 0))) +
+  
+  facet_wrap(~ Site, ncol=1, labeller = label_both)
+
+```
+  
+Figure 3. Salinity and discharge data collected from autonomous sensors from the Lone Cabbage Reef restoration site near Suwannee, FL. Each graph represents a sensor location, with top of page as north, and right of page as east. The figures (Sites 7-9) represent sensors close to shore in an area where salinity may be influenced by restoring Lone Cabbage Reef. The primary y-axis is Salinity (ppt, parts per thousand), and the secondary y-axis is Suwannee River discharge (CFS, cubic feet per second) measured at USGS Wilcox station 02323500 on the Suwannee River. River discharge is graphed as a daily mean in the light blue filled shape near the bottom of each graph. Daily mean salinity values (black line) are depicted using a 95% confidence interval (grey shaded region). Missing river discharge values are due to corrupt readings or missing equipment.
+
+
+```{r temp_789, warning=FALSE, include= FALSE}
+
+wq_temp789 <- wq_temp2 %>% 
+  filter( Site == c("7", "8", "9"))
+
+wq_temp789$Site <- factor(wq_temp789$Site, levels = c("7", "8","9"))
+
+dis_temp789 <- dis2 %>%
+ expand(Site=unique(wq_temp789$Site), dates) %>%
+  left_join(dis2) %>%
+  mutate(Measure = "Discharge", minVal = -20, maxVal = val/1000-20) %>%
+  select(Site, d2 = dates, Measure, minVal, maxVal)
+
+
+```
+
+```{r temp_plot789, echo= FALSE, warning= FALSE, message= FALSE, fig.height= 10, fig.width=10}
+
+ggplot() +
+
+  geom_ribbon(data= wq_temp789, aes( x= Obs_Date, ymin = temp.mean - 1.96*temp.sd, ymax = temp.mean + 1.96*temp.sd), fill = "#D55E00", alpha= 0.3) +
+  
+  geom_line(data= wq_temp789, aes(x = Obs_Date, y = temp.mean, fill= "Temperature"), color= "#D55E00") +
+  
+  geom_ribbon(data=dis_temp789, aes(x= as.POSIXct(d2), ymax=maxVal, ymin=minVal, fill=Measure), 
+              alpha=0.4) +
+  
+  xlab("Date") +
+  
+  scale_y_continuous(name = "Temperature(C)", 
+                     limits=c(-20,50), 
+                     breaks = c(0, 10,20,30,40),
+                     sec.axis = sec_axis(~(.+20), 
+                                         name = "River Discharge (1,000 cfs)
+                                         ",
+                                         breaks = waiver())) +
+   
+  scale_x_datetime(breaks = seq(as.POSIXct("2021-01-01"),
+                 as.POSIXct("2021-03-31"), "2 weeks"), date_labels = "%b %d %Y",expand = c(0, 0)) +
+
+  
+  scale_fill_manual(values = c("#56B4E9", "#D55E00")) +
+  
+  theme(legend.position=("top"),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.background = element_rect(fill = NA, colour = NA) ,
+        panel.border = element_rect(color = "black", size = 1, fill = NA, linetype="solid"),
+        axis.text=element_text(size=15),
+        axis.title=element_text(size=17,face="bold"),
+        plot.title =element_text(size=17, face='bold'),
+        axis.text.x = element_text(angle = 65, hjust = 1, vjust = 1, face= "bold"),
+        axis.text.y = element_text(face= "bold"),
+        legend.title=element_blank(),
+        legend.text=element_text(size=12),
+        strip.text = element_text(size = 15),
+        panel.spacing = unit(1, "lines")) +
+  
+ guides(fill = guide_legend(override.aes = list(colour = NULL, linetype = 0))) +
+  
+  facet_wrap(~ Site, ncol=1, labeller = label_both)
+
+```
+  
+Figure 4.  Temperature and discharge data collected from autonomous sensors from the Lone Cabbage Reef restoration site near Suwannee, FL. Each graph represents a sensor location, with top of page as north, and right of page as east. The figures (Sites 7-9) represent sensors close to shore in an area where salinity may be influenced by restoring Lone Cabbage Reef. The primary y-axis is Temperature (C, Celsius), and the secondary y-axis is Suwannee River discharge (CFS, cubic feet per second) measured at USGS Wilcox station 02323500 on the Suwannee River. River discharge is graphed as a daily mean in the light blue filled shape near the bottom of each graph. Daily mean temperature values (orange line) are depicted with a 95% confidence interval (shaded orange region). Missing river discharge values are due to corrupt readings or missing equipment.
+
+```{r sal_654, warning= FALSE, message= FALSE, include= FALSE}
+
+# Sensor water quality carpentry
+wq_654 <- wq2 %>% 
+  filter( Site == c("6", "5", "4"))
+
+wq_654$Site <- factor(wq_654$Site, levels = c("6", "5","4"))
+
+dis_654 <- dis2 %>%
+ expand(Site=unique(wq_654$Site), dates) %>%
+  left_join(dis2) %>%
+  mutate(Measure = "Discharge", minVal = -20, maxVal = val/1000-20) %>%
+  select(Site, d2 = dates, Measure, minVal, maxVal)
+
+```
+
+```{r sal_plot654, echo=FALSE, warning= FALSE, message= FALSE, fig.height= 10, fig.width=10}
+ggplot() +
+
+  geom_ribbon(data= wq_654, aes( x= Obs_Date, ymin = sal.mean - 1.96*sal.sd, ymax = sal.mean + 1.96*sal.sd), fill = "grey70") +
+  
+  geom_line(data= wq_654, aes(x = Obs_Date, y = sal.mean, fill= "Salinity")) +
+  
+  geom_ribbon(data=dis_654, aes(x= as.POSIXct(d2), ymax=maxVal, ymin=minVal, fill=Measure), 
+              alpha=0.4) +
+  
+  xlab("Date") +
+  
+  scale_y_continuous(name = "Salinity(ppt)", 
+                     limits=c(-20,50), 
+                     breaks = c(0, 10,20,30,40),
+                     sec.axis = sec_axis(~(.+20), 
+                                         name = "River Discharge (1,000 cfs)
+                                         ",
+                                         breaks = waiver())) +
+   
+  scale_x_datetime(breaks = seq(as.POSIXct("2021-01-01"),
+                 as.POSIXct("2021-03-31"), "2 weeks"), date_labels = "%b %d %Y",expand = c(0, 0)) +
+
+  
+  scale_fill_manual(values = c("#56B4E9", "#000000")) +
+  
+  theme(legend.position=("top"),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.background = element_rect(fill = NA, colour = NA) ,
+        panel.border = element_rect(color = "black", size = 1, fill = NA, linetype="solid"),
+        axis.text=element_text(size=15),
+        axis.title=element_text(size=17,face="bold"),
+        plot.title =element_text(size=17, face='bold'),
+        axis.text.x = element_text(angle = 65, hjust = 1, vjust = 1, face= "bold"),
+        axis.text.y = element_text(face= "bold"),
+        legend.title=element_blank(),
+        legend.text=element_text(size=12),
+        strip.text = element_text(size = 15),
+        panel.spacing = unit(1, "lines")) +
+  
+ guides(fill = guide_legend(override.aes = list(colour = NULL, linetype = 0))) +
+  
+  facet_wrap(~ Site, ncol=1, labeller = label_both)
+
+```
+  
+Figure 5.  Salinity and discharge data collected from autonomous sensors from the Lone Cabbage Reef restoration site near Suwannee, FL. Each graph represents a sensor location, with top of page as north, and right of page as east. The figures (Sites 4-6) represent the western side of the Lone Cabbage Reef restoration site. The primary y-axis is Salinity (ppt, parts per thousand), and the secondary y-axis is Suwannee River discharge (CFS, cubic feet per second) measured at USGS Wilcox station 02323500 on the Suwannee River. River discharge is graphed as a daily mean in the light blue filled shape near the bottom of each graph. Daily mean salinity values (black line) are depicted using a 95% confidence interval (grey shaded region). Missing river discharge values are due to corrupt readings or missing equipment.
+
+```{r temp_654, warning= FALSE, message= FALSE, include= FALSE}
+# Sensor water quality carpentry
+
+wq_temp654 <- wq_temp2 %>% 
+  filter( Site == c("6", "5", "4"))
+
+wq_temp654$Site <- factor(wq_temp654$Site, levels = c("6", "5","4"))
+
+dis_temp654 <- dis2 %>%
+ expand(Site=unique(wq_temp654$Site), dates) %>%
+  left_join(dis2) %>%
+  mutate(Measure = "Discharge", minVal = -20, maxVal = val/1000-20) %>%
+  select(Site, d2 = dates, Measure, minVal, maxVal)
+
+```
+
+
+
+```{r temp_plot654, echo= FALSE, warning= FALSE, message= FALSE, fig.height= 10, fig.width=10}
+ggplot() +
+
+  geom_ribbon(data= wq_temp654, aes( x= Obs_Date, ymin = temp.mean - 1.96*temp.sd, ymax = temp.mean + 1.96*temp.sd), fill = "#D55E00", alpha= 0.3) +
+  
+  geom_line(data= wq_temp654, aes(x = Obs_Date, y = temp.mean, fill= "Temperature"), color= "#D55E00") +
+  
+  geom_ribbon(data=dis_temp654, aes(x= as.POSIXct(d2), ymax=maxVal, ymin=minVal, fill=Measure), 
+              alpha=0.4) +
+  
+  xlab("Date") +
+  
+  scale_y_continuous(name = "Temperature(C)", 
+                     limits=c(-20,50), 
+                     breaks = c(0, 10,20,30,40),
+                     sec.axis = sec_axis(~(.+20), 
+                                         name = "River Discharge (1,000 cfs)
+                                         ",
+                                         breaks = waiver())) +
+ 
+  scale_x_datetime(breaks = seq(as.POSIXct("2021-01-01"),
+                 as.POSIXct("2021-03-31"), "2 weeks"), date_labels = "%b %d %Y",expand = c(0, 0)) +
+  
+  scale_fill_manual(values = c("#56B4E9", "#D55E00")) +
+  
+  theme(legend.position=("top"),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.background = element_rect(fill = NA, colour = NA) ,
+        panel.border = element_rect(color = "black", size = 1, fill = NA, linetype="solid"),
+        axis.text=element_text(size=15),
+        axis.title=element_text(size=17,face="bold"),
+        plot.title =element_text(size=17, face='bold'),
+        axis.text.x = element_text(angle = 65, hjust = 1, vjust = 1, face= "bold"),
+        axis.text.y = element_text(face= "bold"),
+        legend.title=element_blank(),
+        legend.text=element_text(size=12),
+        strip.text = element_text(size = 15),
+        panel.spacing = unit(1, "lines")) +
+  
+ guides(fill = guide_legend(override.aes = list(colour = NULL, linetype = 0))) +
+  
+  facet_wrap(~ Site, ncol=1, labeller = label_both)
+```
+    
+Figure 6.  Temperature and discharge data collected from autonomous sensors from the Lone Cabbage Reef restoration site near Suwannee, FL. Each graph represents a sensor location, with top of page as north, and right of page as east. The figures (Sites 4-6) represent the western side of the Lone Cabbage Reef restoration site. The primary y-axis is Temperature (C, Celsius), and the secondary y-axis is Suwannee River discharge (CFS, cubic feet per second) measured at USGS Wilcox station 02323500 on the Suwannee River. River discharge is graphed as a daily mean in the light blue filled shape near the bottom of each graph. Daily mean temperature values (orange line) are depicted with a 95% confidence interval (shaded orange region). Missing river discharge values are due to corrupt readings or missing equipment.
+
+
+```{r sal_123, warning= FALSE, message= FALSE, include= FALSE}
+
+wq_123 <- wq2 %>% 
+  filter( Site == c("1", "2", "3"))
+
+wq_123$Site <- factor(wq_123$Site, levels = c("1", "2","3"))
+
+dis_123 <- dis2 %>%
+ expand(Site=unique(wq_123$Site), dates) %>%
+  left_join(dis2) %>%
+  mutate(Measure = "Discharge", minVal = -20, maxVal = val/1000-20) %>%
+  select(Site, d2 = dates, Measure, minVal, maxVal)
+
+
+
+```
+
+```{r sal_plot123, echo= FALSE, warning= FALSE, message= FALSE, fig.height= 10, fig.width=10}
+
+ggplot() +
+
+  geom_ribbon(data= wq_123, aes( x= Obs_Date, ymin = sal.mean - 1.96*sal.sd, ymax = sal.mean + 1.96*sal.sd), fill = "grey70") +
+  
+  geom_line(data= wq_123, aes(x = Obs_Date, y = sal.mean, fill= "Salinity")) +
+  
+  geom_ribbon(data=dis_123, aes(x= as.POSIXct(d2), ymax=maxVal, ymin=minVal, fill=Measure), 
+              alpha=0.4) +
+  
+  xlab("Date") +
+  
+  scale_y_continuous(name = "Salinity(ppt)", 
+                     limits=c(-20,50), 
+                     breaks = c(0, 10,20,30,40),
+                     sec.axis = sec_axis(~(.+20), 
+                                         name = "River Discharge (1,000 cfs)
+                                         ",
+                                         breaks = waiver())) +
+   
+  scale_x_datetime(breaks = seq(as.POSIXct("2021-01-01"),
+                 as.POSIXct("2021-03-31"), "2 weeks"), date_labels = "%b %d %Y",expand = c(0, 0)) +
+
+  
+  scale_fill_manual(values = c("#56B4E9", "#000000")) +
+  
+  theme(legend.position=("top"),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.background = element_rect(fill = NA, colour = NA) ,
+        panel.border = element_rect(color = "black", size = 1, fill = NA, linetype="solid"),
+        axis.text=element_text(size=15),
+        axis.title=element_text(size=17,face="bold"),
+        plot.title =element_text(size=17, face='bold'),
+        axis.text.x = element_text(angle = 65, hjust = 1, vjust = 1, face= "bold"),
+        axis.text.y = element_text(face= "bold"),
+        legend.title=element_blank(),
+        legend.text=element_text(size=12),
+        strip.text = element_text(size = 15),
+        panel.spacing = unit(1, "lines")) +
+  
+ guides(fill = guide_legend(override.aes = list(colour = NULL, linetype = 0))) +
+  
+  facet_wrap(~ Site, ncol=1, labeller = label_both, scales= "free_y")
+
+```
+  
+Figure 7.  Salinity and discharge data collected from autonomous sensors from the Lone Cabbage Reef restoration site near Suwannee, FL. The figures (Sites 1-3) represent the eastern side of the Lone Cabbage Reef restoration site. The primary y-axis is Salinity (ppt, parts per thousand), and the secondary y-axis is Suwannee River discharge (CFS, cubic feet per second) measured at USGS Wilcox station 02323500 on the Suwannee River. River discharge is graphed as a daily mean in the light blue filled shape near the bottom of each graph. Daily mean salinity values (black line) are depicted using a 95% confidence interval (grey shaded region). Missing river discharge values are due to corrupt readings or missing equipment.
+
+
+```{r temp_123, warning= FALSE, message= FALSE, include = FALSE}
+
+wq_temp123 <- wq_temp2 %>% 
+  filter( Site == c("1", "2", "3"))
+
+wq_temp123$Site <- factor(wq_temp123$Site, levels = c("1", "2","3"))
+
+dis_temp123 <- dis2 %>%
+ expand(Site=unique(wq_temp123$Site), dates) %>%
+  left_join(dis2) %>%
+  mutate(Measure = "Discharge", minVal = -20, maxVal = val/1000-20) %>%
+  select(Site, d2 = dates, Measure, minVal, maxVal)
+```
+
+
+```{r temp_plot123, echo=FALSE, warning= FALSE, message= FALSE, fig.height= 10, fig.width=10}
+
+ggplot() +
+
+  geom_ribbon(data= wq_temp123, aes( x= Obs_Date, ymin = temp.mean - 1.96*temp.sd, ymax = temp.mean + 1.96*temp.sd), fill = "#D55E00", alpha= 0.3) +
+  
+  geom_line(data= wq_temp123, aes(x = Obs_Date, y = temp.mean, fill= "Temperature"), color= "#D55E00") +
+  
+  geom_ribbon(data=dis_temp123, aes(x= as.POSIXct(d2), ymax=maxVal, ymin=minVal, fill=Measure), 
+              alpha=0.4) +
+  
+  xlab("Date") +
+  
+  scale_y_continuous(name = "Temperature(C)", 
+                     limits=c(-20,50), 
+                     breaks = c(0, 10,20,30,40),
+                     sec.axis = sec_axis(~(.+20), 
+                                         name = "River Discharge (1,000 cfs)
+                                         ",
+                                         breaks = waiver())) +
+   
+  scale_x_datetime(breaks = seq(as.POSIXct("2021-01-01"),
+                 as.POSIXct("2021-03-31"), "2 weeks"), date_labels = "%b %d %Y",expand = c(0, 0)) +
+
+  
+  scale_fill_manual(values = c("#56B4E9", "#D55E00")) +
+  
+  theme(legend.position=("top"),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.background = element_rect(fill = NA, colour = NA) ,
+        panel.border = element_rect(color = "black", size = 1, fill = NA, linetype="solid"),
+        axis.text=element_text(size=15),
+        axis.title=element_text(size=17,face="bold"),
+        plot.title =element_text(size=17, face='bold'),
+        axis.text.x = element_text(angle = 65, hjust = 1, vjust = 1, face= "bold"),
+        axis.text.y = element_text(face= "bold"),
+        legend.title=element_blank(),
+        legend.text=element_text(size=12),
+        strip.text = element_text(size = 15),
+        panel.spacing = unit(1, "lines")) +
+  
+ guides(fill = guide_legend(override.aes = list(colour = NULL, linetype = 0))) +
+  
+  facet_wrap(~ Site, ncol=1, labeller = label_both)
+
+
+```
+  
+  
+Figure 8.  Temperature and discharge data collected from autonomous sensors from the Lone Cabbage Reef restoration site near Suwannee, FL. The figures (Sites 1-3) represent the eastern side of the Lone Cabbage Reef restoration site. The primary y-axis is Temperature (C, Celsius), and the secondary y-axis is Suwannee River discharge (CFS, cubic feet per second) measured at USGS Wilcox station 02323500 on the Suwannee River. River discharge is graphed as a daily mean in the light blue filled shape near the bottom of each graph. Daily mean temperature values (orange line) are depicted with a 95% confidence interval (shaded orange region).
+
