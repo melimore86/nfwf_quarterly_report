@@ -2,4 +2,4 @@ nfwf-quarterly-report
 water-quality-quarterly-figures
 river-discharge-figures
 windrose-quarterly-figures
-river-discharge-heat-map
+heat-maps

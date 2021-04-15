@@ -5,5 +5,85 @@ date: "`r Sys.Date()`"
 site: bookdown::bookdown_site
 ---
 
-# NFWF QUARTERLY REPORT
+# NFWF Quarterly Report  
 
+**i.	General statement of project status and implementation.**  
+
+This report includes work accomplished during October through December 2020. 
+
+Implementation continues to be mostly smooth and the monitoring phase of our project is progressing in a timely fashion. 
+
+To date, this project is on track both in budget and within timeline. 
+
+**ii. Updates on individual tasks.** 
+  
+**Task 1.  Planning and Permitting**  
+A.	Work performed on Task 1. 
+
+All work on this task was completed by January of 2018.  
+
+B.	Performance of Task I as against the Task 1 Budget. 
+
+All subtasks in Task 1 have been completed on schedule, or ahead of schedule, and we remain within budget. 
+
+C.	Existing or anticipated problems with implementation of Task 1. 
+
+We currently have no existing or anticipated problems with completion of Task 1 and consider this part of the project completed. 
+
+
+**Task 2.  Develop Adaptive Monitoring Plan**  
+A.	Work performed on Task 2.
+
+The Adaptive Management Plan for this project should be seen at minimum as a living document, and in reality, as an active, constant process.  
+An updated version of the Adaptive Management Plan, and Biological Sampling Plan, were completed in June 2020.  The elevation and biological sampling plans continue to evolve as we have now completed the second winter season of postconstruction oyster sampling, and ongoing water quality sampling. The variability displayed by each of the strata (substrate, harvest status, location) collected in the 2019/20 winter has been incorporated into our estimates of numbers samples required to achieve a known power of detecting change of particular magnitude for the 2020/2021 sampling period.  
+B.	Progress made towards Task 2 milestones.
+
+Updating of adaptive management plan, biological sampling plan, and work on updating elevation sampling plan.
+
+C.	Performance of Task 2 as against the Task 2 Budget. 
+
+Task 2 appears to be well within the timeline and budget as set out in the proposal.  
+
+D.	Existing or anticipated problems with implementation of Task 2. 
+
+We do not anticipate any problems with implementation of Task 2.
+
+**Task 3.  Preconstruction Monitoring**  
+A.	Work performed on Task 3. 
+
+All phases of preconstruction monitoring have been completed as of December 2018. 
+
+B.	Progress made towards Task 3 milestones.
+
+All subtasks within Task 3 have been completed. 
+C.	Performance of Task 3 as against the Task 3 Budget. 
+
+This task appears to be well within budget and the schedule of spending as identified in the proposal. 
+
+D.	Existing or anticipated problems with implementation of Task 3. 
+
+This task is completed.  
+
+
+**Task 4.  Construction**  
+A.	Work performed on Task 4.
+
+All construction activities were completed by November of 2018, so no new work is reported here on construction activities. 
+
+B.	Progress made towards Task 4 milestones.
+
+All aspects of reef construction were completed as of November 30, 2018.
+
+C.	Performance of Task 4 as against the Task 4 Budget. 
+
+This task has been completed on schedule, and within budget. 
+
+D.	Existing or anticipated problems with implementation of Task 4. 
+
+ No problems are anticipated with the implementation of Task 4, which is complete. 
+  
+
+Task 5. Post-Construction Monitoring  
+A.	 Work performed on Task 5. 
+
+Water quality and spat sampling. We have continued water quality and spat monitoring during the reporting period.
