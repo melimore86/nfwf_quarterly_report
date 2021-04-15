@@ -1,4 +1,13 @@
 # Water Quality Quarterly Figures  
+
+```{r wq_options setup, include=FALSE, warning=FALSE, message=FALSE, comment=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library("tidyverse")
+library("lubridate")
+library("waterData")
+library("scales")
+```
+  
 ```{r salinity_data_processing, include=FALSE, warning=FALSE, message= FALSE}
 
 # Sensor water quality carpentry
